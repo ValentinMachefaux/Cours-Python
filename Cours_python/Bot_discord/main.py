@@ -2,7 +2,8 @@ import discord
 import os
 from dotenv import load_dotenv
 from discord.ext import commands
-from discord_ui import Button
+from discord.ui import Button,View,Select
+
 
 # Charge le fichier .env qui est dans le meme dossier
 load_dotenv()
@@ -11,58 +12,51 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 # creation d'un nouvel objet bot avec un prefix
-bot = commands.Bot(command_prefix="!",intents=discord.Intents.all())
+bot = commands.Bot(command_prefix="!",case_insensitive=True,intents=discord.Intents.all())
 embed = discord.Embed
-user = discord.user
+user = discord.user.User
+style = discord.ButtonStyle
+option=discord.SelectOption
 
-@bot.command()
-async def hello(ctx):
-  await ctx.channel.send("Greetings")
 
-@bot.event
-async def on_message(message):
-  #await message.delete()
-  await bot.process_commands(message)
+class MyButton(Button):
+  def __init__(self,label,style,id):
+    super().__init__(label=label,style=style,custom_id=id)
 
-  if message.content == "blip":
-    await message.channel.send("bloup")
+  async def callback(self,inte):
+    if inte.custom_id == "bonjour":
+      await inte.response.send_message("Eh bien continuons dans ce cas !")
+    elif inte.custom_id == "non":
+      await inte.response.send_message("Passe ton chemin alors !")
+
 
 @bot.command()
 async def game(ctx):
+  view = View()
 
   emd = embed(
-    title=ctx.author,
-    description="Voulez vous jouer a un jeu ? ",
-    components=[[
-      Button( 
-          color="blue",
-          custom_id="button1",
-          label="Blue button",
-          emoji="🚀",
-      ),
-      Button(
-          #style=ButtonStyle.red,
-          custom_id="button2",
-          label="Red button",
-          disabled=True,
-          emoji="🐺",
-      ),
-      Button(
-          #style=ButtonStyle.green,
-          custom_id="button3",
-          label="Green button",
-          emoji="😄",
-      ),
-    ]]
+    title="Voulez vous jouer a un jeu ?",
+    color=discord.Color.blurple(),
   )
-  await ctx.send(embed=emd)
+  emd.set_author(
+    name=ctx.author.display_name,
+    icon_url=ctx.author.avatar)
+
+
+  buttonN = MyButton("je peux pas j'ai piscine",style.danger,"non")
+
+
+
+
+  view.add_item(MyButton("boujour",style.primary,"bonjour"))
+  view.add_item(buttonN)
+  await ctx.send(embed=emd,view=view)
+
 
 @bot.event
 async def on_ready():
   print("The bot is ready")
-
-
-
+  
 
 
 bot.run(DISCORD_TOKEN)
