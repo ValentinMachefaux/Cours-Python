@@ -1,10 +1,12 @@
 import discord
+import asyncio
+import youtube_dl
 import os
 from dotenv import load_dotenv
 import json
 import random
 from discord.ext import commands
-from discord.ui import Button,View,Select
+from discord.ui import View,Button
 from discord.reaction import Reaction
 
 
@@ -15,99 +17,96 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 # creation d'un nouvel objet bot avec un prefix
-bot = commands.Bot(command_prefix="!",case_insensitive=True,intents=discord.Intents.all())
+bot = commands.Bot(case_insensitive=True,intents=discord.Intents.all())
 
 embed = discord.Embed
-style = discord.ButtonStyle
-option = discord.SelectOption
+voice_clients = {}
+yt_opt={'format':'bestaudio/best'}
+yt=youtube_dl.YoutubeDL(yt_opt)
+ffmpeg_opts= {'options':'-vn'}
+
+class Qcm():
+  def __init__(self,id_question,question):
+    super().__init__()
+    self.id_question = id_question
+    self.question=question
+    self.embed = discord.Embed(title=f"Question numéro : {id_question}",color=0x763374)
+    self.embed.add_field(name=f"\u200b",value=f"{question}",inline=True)
+  def to_dict(self):
+    return self.embed.to_dict()
+
 
 @bot.event
 async def on_ready():
   print("The bot is ready")
 
-class MyButton(Button):
-  def __init__(self,label,style,id):
-    super().__init__(label=label,style=style,custom_id=id)
 
-  async def callback(self,inte):
-    if inte.custom_id == "oui":
-      await inte.response.send_message("Bravo !")
-    elif inte.custom_id == "non":
-      await inte.response.send_message("Raté !")
+@bot.event
+async def on_message(message):
+  if message.content.startswith("!play"):
+    #on cree un tru catch pour verif si la personne a mis un espace ou non durant la commande
+    try:
+      url = message.content.split()[1]
+      #recup le canal connecté
+      voice_client = await message.author.voice.channel.connect()
+      voice_clients[voice_client.guild.id] = voice_client
 
-@bot.command()
-async def coucou(ctx):
-  print("coucou")
+      loop = asyncio.get_event_loop()
+      data = await loop.run_in_executor(None,lambda:yt.extract_info(url,download=False))
+      #met l'url dans la list data
+      music = data['url']
+      player = discord.FFmpegPCMAudio(music,**ffmpeg_opts)
+      voice_client.play(player)
+    except Exception as err:
+      print(err)
 
-@bot.command()
-async def game(ctx):
-  view = View()
+    
+  if message.content.startswith("!quizz"):
+    with open('Bot_discord/questions.json','r',encoding="utf8") as f:
+      data = json.loads(f.read())
+      data_dic = data["quizz"]
+    score = 0
+    for i in range(5):
 
-  emd = embed(
-    title="Voulez vous jouer a un jeu ?",
-    color=discord.Color.blurple(),
-  )
-  emd.set_author(
-    name=ctx.author.display_name,
-    icon_url=ctx.author.avatar)
+      ran = random.randint(0,29)
+      embed= Qcm(data_dic[i]["id"],data_dic[ran]["question"])
+      view= View()
 
+      for o in data_dic[ran]["propositions"]:
 
-  buttonY = MyButton("Yes",style.green,"yes")
-  buttonN = MyButton("No",style.grey,"no")
-  respButton = discord.Interaction.response
+        btn = Button(label=o,style=discord.ButtonStyle.primary,custom_id=o)
+        view.add_item(btn)
 
-  view.add_item(buttonY)
-  view.add_item(buttonN)
+        async def btn_callback(interaction):
+          await interaction.response.defer()
+        btn.callback = btn_callback
 
-  await ctx.send(embed=emd,view=view)
-  
-  if discord.Interaction.custom_id == "yes":
-    print("bravo")
-    await respButton.send_message("bravo")
-
-
-
-@bot.command()
-async def quiz(ctx,message):
-  with open('Bot_discord/questions.json','r',encoding="utf8") as f:
-    data = json.loads(f.read())
-    data_dic = data["quizz"]
-
-  class Qcm(Select):
-      async def callback(self,interaction):
-        if self.values[0] == random_reponse:
-          print(random_anec)
-          await interaction.response.send_message(embed=embed(title="Bravo mais saviez-vous que :", description=random_anec))
-        else:
-          print(random_anec)
-          await interaction.response.send_message("Raté, essaye encore") #TO DO moins X point
+      await message.channel.send(embed=embed)
+      await message.channel.send(view=view)
 
 
+      reaction = await bot.wait_for("interaction",timeout=8000)
+      if reaction.custom_id == data_dic[ran]["reponse"]:
+        score= score+1
+        await message.channel.send("Bravo mais saviez-vous que ?\n")
+        await message.channel.send(data_dic[ran]["anecdote"])
+      else:
+        score = score-0.5
+        await message.channel.send("Raté, vous perdez 0.5 point")
 
-  ran = random.randint(0,len(data_dic))
-  
-  random_question = data_dic[0]["question"]
-  random_reponse =data_dic[ran]["reponse"]
-  random_prop =data_dic[ran]["propositions"]
-  random_anec =data_dic[ran]["anecdote"]
-  random_indice =data_dic[ran]["indice"]
+      if message.content=="indice":
+        print(data_dic[ran]["indice"])
+    await message.channel.send(embed=discord.Embed(title="Fin du quizz",description="Votre score est de :{score}"))
 
-  view =View()
 
-  qcm1 = Qcm(
-    options=[
-      option(label=random_prop[0]),
-      option(label=random_prop[1]),
-      option(label=random_prop[2]),
-      option(label=random_prop[3]),
-    ],row=4
-  )
 
-  if message.content == "indice":
-    await ctx.send(embed=embed(description=random_indice))
 
-  view.add_item(qcm1)
-  await ctx.send(embed=embed(description=random_question),view=view)
+
+
+
+
+
+
 
 #@bot.command()
 #async def hello(ctx,message):
