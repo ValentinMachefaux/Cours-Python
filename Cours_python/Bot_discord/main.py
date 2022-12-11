@@ -68,35 +68,43 @@ async def on_message(message):
     score = 0
     for i in range(5):
 
+      async def btn_callback(interaction):
+        await interaction.response.defer()
+        
       ran = random.randint(0,29)
       embed= Qcm(data_dic[i]["id"],data_dic[ran]["question"])
       view= View()
+      btnI = Button(label="Indice ?",style=discord.ButtonStyle.green,custom_id="indice")
+      btnI.callback=btn_callback
 
       for o in data_dic[ran]["propositions"]:
 
         btn = Button(label=o,style=discord.ButtonStyle.primary,custom_id=o)
         view.add_item(btn)
 
-        async def btn_callback(interaction):
-          await interaction.response.defer()
         btn.callback = btn_callback
 
+      view.add_item(btnI)
       await message.channel.send(embed=embed)
       await message.channel.send(view=view)
 
 
       reaction = await bot.wait_for("interaction",timeout=8000)
-      if reaction.custom_id == data_dic[ran]["reponse"]:
+      
+      if reaction.custom_id == "indice":
+        await message.channel.send(data_dic[ran]["indice"])
+      elif reaction.custom_id == data_dic[ran]["reponse"]:
         score= score+1
         await message.channel.send("Bravo mais saviez-vous que ?\n")
         await message.channel.send(data_dic[ran]["anecdote"])
       else:
-        score = score-0.5
-        await message.channel.send("Raté, vous perdez 0.5 point")
+        if score>0:
+          score = score-1
+        else:
+          score = 0
+        await message.channel.send("Raté")
 
-      if message.content=="indice":
-        print(data_dic[ran]["indice"])
-    await message.channel.send(embed=discord.Embed(title="Fin du quizz",description="Votre score est de :{score}"))
+    await message.channel.send(embed=discord.Embed(title="Fin du quizz",description="Votre score est de : "+str(score)+"/5"))
 
 
 
