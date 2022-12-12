@@ -70,11 +70,12 @@ async def on_message(message):
 
       async def btn_callback(interaction):
         await interaction.response.defer()
-        
+
       ran = random.randint(0,29)
       embed= Qcm(data_dic[i]["id"],data_dic[ran]["question"])
       view= View()
       btnI = Button(label="Indice ?",style=discord.ButtonStyle.green,custom_id="indice")
+      btnS = Button(label=str(score)+"/5",style=discord.ButtonStyle.grey,disabled=True)
       btnI.callback=btn_callback
 
       for o in data_dic[ran]["propositions"]:
@@ -85,24 +86,28 @@ async def on_message(message):
         btn.callback = btn_callback
 
       view.add_item(btnI)
-      await message.channel.send(embed=embed)
-      await message.channel.send(view=view)
+      view.add_item(btnS)
+      await message.channel.send(embed=embed,view=view)
 
 
-      reaction = await bot.wait_for("interaction",timeout=8000)
-      
-      if reaction.custom_id == "indice":
-        await message.channel.send(data_dic[ran]["indice"])
-      elif reaction.custom_id == data_dic[ran]["reponse"]:
-        score= score+1
-        await message.channel.send("Bravo mais saviez-vous que ?\n")
-        await message.channel.send(data_dic[ran]["anecdote"])
-      else:
-        if score>0:
-          score = score-1
+      while True:
+        reaction = await bot.wait_for("interaction",timeout=8000)
+
+        if reaction.custom_id == "indice":
+          await message.channel.send(data_dic[ran]["indice"])
+          continue
+        elif reaction.custom_id == data_dic[ran]["reponse"]:
+          score= score+1
+          await message.channel.send("Bravo mais saviez-vous que ?\n")
+          await message.channel.send(data_dic[ran]["anecdote"])
+          break
         else:
-          score = 0
-        await message.channel.send("Raté")
+          if score>0:
+            score = score-1
+          else:
+            score = 0
+          await message.channel.send("Raté")
+          break
 
     await message.channel.send(embed=discord.Embed(title="Fin du quizz",description="Votre score est de : "+str(score)+"/5"))
 
